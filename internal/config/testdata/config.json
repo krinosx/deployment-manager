@@ -1,0 +1,11 @@
+{
+  "pipeline": {
+    "repo_dir": "/opt/mud",
+    "src_dir": "/opt/mud/src",
+    "lib_dir": "/opt/mud/lib",
+    "backup_dir": "/opt/mud/backups"
+  },
+  "branch": "main",
+  "enable_backup": true,
+  "state_file_path": "/var/lib/deploy-manager/last-deployed-sha"
+}

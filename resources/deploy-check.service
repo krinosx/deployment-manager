@@ -1,0 +1,10 @@
+[Unit]
+Description=MUD Server deployment operator.
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/deploy-check --config /etc/deployment-manager/config.json
+User=krinosx
+SyslogIdentifier=deploy-check

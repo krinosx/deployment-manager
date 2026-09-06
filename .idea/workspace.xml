@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="e6e02034-b579-4926-90b5-1bc49be8bfcb" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/internal/history/history.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.name" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/deployment-manager.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deployment-manager.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmd/deploy-check/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/deploy-check/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmd/deploy-tui/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/deploy-tui/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AI-Handover/00-overview.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AI-Handover/00-overview.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AI-Handover/01-project-skeleton.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AI-Handover/01-project-skeleton.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AI-Handover/02-gitutil-pipeline.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AI-Handover/02-gitutil-pipeline.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AI-Handover/03-deploy-check.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AI-Handover/03-deploy-check.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AI-Handover/04-systemd-units.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AI-Handover/04-systemd-units.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/AI-Handover/05-deploy-tui.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/AI-Handover/05-deploy-tui.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/journallog/journallog.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/journallog/journallog.go" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Go File" />
+      </list>
+    </option>
+  </component>
+  <component name="GOROOT" url="file://$USER_HOME$/go-sdk/go1.26.7" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3Ix3HGpsWnUy8vdxUbdX9movM1T" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "DefaultGoTemplateProperty": "Go File",
+    "Go Build.go build deployment-manager/cmd/deploy-check.executor": "Run",
+    "Go Build.go build deployment-manager/cmd/deploy-tui.executor": "Debug",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.GoLinterPluginOnboardingV2": "true",
+    "RunOnceActivity.GoLinterPluginStorageMigration": "true",
+    "RunOnceActivity.GoOptimizationToolWindowEnableInLayout.v333333": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.go.analysis.ui.options.defaults": "true",
+    "RunOnceActivity.go.formatter.settings.were.checked": "true",
+    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/home/krinosx/GolandProjects/deployment-manager",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "terminal"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/docs/AI-Handover" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Go Build.go build deployment-manager/cmd/deploy-tui">
+    <configuration name="go build deployment-manager/cmd/deploy-check" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="deployment-manager" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/krinosx/deployment-manager/cmd/deploy-check" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/deploy-check" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build deployment-manager/cmd/deploy-tui" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="deployment-manager" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/krinosx/deployment-manager/cmd/deploy-tui" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/deploy-tui" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-gosdk-63c95d513abe-08e7ff217c2b-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-262.10315.135" />
+        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-GO-262.10315.135" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="e6e02034-b579-4926-90b5-1bc49be8bfcb" name="Changes" comment="" />
+      <created>1788692302727</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1788692302727</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Logs and Linux Service&#10;&#10;Implementing code to send logs to systemd journal.&#10;&#10;Creating the linux service files." />
+    <option name="LAST_COMMIT_MESSAGE" value="" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/cmd/deploy-tui/main.go</url>
+          <line>43</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/internal/history/history.go</url>
+          <line>30</line>
+          <option name="timeStamp" value="4" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/internal/history/history.go</url>
+          <line>51</line>
+          <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/internal/history/history.go</url>
+          <line>50</line>
+          <option name="timeStamp" value="6" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

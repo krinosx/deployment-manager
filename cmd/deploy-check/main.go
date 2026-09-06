@@ -7,6 +7,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/google/uuid"
 	"github.com/krinosx/deployment-manager/internal/config"
 	"github.com/krinosx/deployment-manager/internal/gitutil"
 	"github.com/krinosx/deployment-manager/internal/journallog"
@@ -55,7 +56,9 @@ func main() {
 		return
 	}
 
-	if !runPipeline(cfg, remoteSHA) {
+	runID := uuid.NewString()
+
+	if !runPipeline(cfg, runID, remoteSHA) {
 		os.Exit(1)
 	}
 
@@ -69,7 +72,7 @@ func main() {
 
 // runPipeline runs each enabled stage in order, logging results, and stops
 // at the first failure. Returns false if any stage failed.
-func runPipeline(cfg config.Config, sha string) bool {
+func runPipeline(cfg config.Config, runID, sha string) bool {
 	type stage struct {
 		name string
 		run  func() pipeline.StageResult
@@ -101,10 +104,10 @@ func runPipeline(cfg config.Config, sha string) bool {
 		if !result.Success {
 			status = "failure"
 		}
-		journallog.LogStage(result.Stage, status, sha, result.Duration.Milliseconds())
+		journallog.LogStage(runID, result.Stage, status, sha, result.Duration.Milliseconds())
 
 		if !result.Success {
-			fmt.Fprintf(os.Stderr, "stage %q failed: %s\n", result.Stage, result.Output)
+			_, _ = fmt.Fprintf(os.Stderr, "stage %q failed: %s\n", result.Stage, result.Output)
 			return false
 		}
 	}
@@ -118,7 +121,7 @@ func acquireLock(path string) (*os.File, error) {
 		return nil, fmt.Errorf("failed to open lock file: %w", err)
 	}
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, fmt.Errorf("another run is already in progress")
 	}
 	return f, nil

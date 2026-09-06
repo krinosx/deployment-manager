@@ -1,78 +1,78 @@
-# Component 2: `gitutil` + `pipeline`
+# Component 2: `gitutil` + `pipeline` (Updated — Done)
 
-See `00-overview.md` for full context, architecture table, and cross-component
-contracts before making decisions here.
+See `00-overview.md` for full context and current architecture status before making
+decisions here. **This component is complete and tested, including against a real repo.**
 
-## Scope
+## `internal/gitutil/gitutil.go`
 
-The actual work logic — independent of logging, state, CLI flags, or systemd. Should
-be testable on its own (e.g. via a throwaway `main.go` or unit tests) before being
-wired into the `deploy-check` binary in component 3.
-
-## `internal/gitutil`
-
-Wraps `git` via `os/exec` (no embedded git library — deliberate choice, see overview).
-
-Needed functions (names indicative, not final):
-- `RemoteHeadSHA(branch string) (string, error)` — runs `git ls-remote origin <branch>`,
-  parses and returns the SHA, **without** touching the working tree. This is what makes
-  the "check without deploying" step cheap.
-- `Pull(branch string) error` — runs the actual `git pull` for the target branch.
-
-## `internal/pipeline`
-
-Encapsulates the deploy steps as discrete, individually-timeable stages, since component
-3 logs one journal entry per stage (`backup`, `pull`, `configure`, `make`).
-
-Needed shape (indicative):
 ```go
-type StageResult struct {
-    Stage    string // "backup" | "pull" | "configure" | "make"
-    Success  bool
-    Output   string // combined stdout+stderr, for local error reporting (not stored long-term — journal owns history)
-    Duration time.Duration
-}
-
-func RunBackup(libPath string) StageResult
-func RunPull(branch string) StageResult
-func RunConfigure(projectRoot string) StageResult
-func RunMake(srcPath string) StageResult
+func RemoteHeadSHA(repoDir, branch string) (string, error)
+func PullBranch(repoDir, branch string) error
 ```
 
-Each stage function should:
-- Capture stdout+stderr combined (so failures are debuggable).
-- Return success/failure via exit code check, not just "did the command run."
-- Not itself write to the journal — that's the caller's job (component 3), keeping this
-  package a pure, loggable, testable unit of work.
+- `RemoteHeadSHA` runs `git ls-remote origin <branch>`, parses the SHA from the output,
+  touches no working-tree state.
+- `PullBranch` runs `git pull --ff-only origin <branch>`, using `CombinedOutput()` (not
+  just `Output()`) so stderr — where git's actual error detail lives — is captured, not
+  just stdout. `--ff-only` was added deliberately so an unexpected diverged-history
+  situation fails loudly instead of attempting an unattended merge.
+- Both use `cmd.Dir = repoDir` explicitly rather than relying on process working
+  directory, since this matters once running under systemd.
 
-### Backup stage
+Tested in `gitutil_test.go` against **real git repos created inline per test** (a bare
+repo acting as "origin," a working clone pushed to it, both via `t.TempDir()` — no
+network access or external fixtures needed). Covers: happy path SHA retrieval, missing
+branch error case, and a basic pull-succeeds case.
 
-- Straightforward copy/archive of `lib/` to a backup location. Naming scheme (timestamp?
-  SHA-tagged?) and retention/pruning are open — currently just mirrors what the user does
-  manually today. Worth deciding a simple retention policy here so backups don't
-  silently fill the disk (flagged as an open question in the overview).
+## `internal/pipeline/pipeline.go`
 
-### Configure / Make stage
+```go
+type Config struct {
+	RepoDir   string `json:"repo_dir"`
+	SrcDir    string `json:"src_dir"`
+	LibDir    string `json:"lib_dir"`
+	BackupDir string `json:"backup_dir"`
+}
 
-- Straightforward `os/exec` calls to `./configure` (project root) and
-  `make clean && make -j4` (in `src/`). Working directory handling matters — make sure
-  each `exec.Cmd` sets `Dir` explicitly rather than relying on process cwd.
+type StageResult struct {
+	Stage    string
+	Success  bool
+	Output   string
+	Duration time.Duration
+}
 
-### Binary swap
+func RunBackup(cfg Config) StageResult
+func RunPull(cfg Config, branch string) StageResult
+func RunConfigure(cfg Config) StageResult
+func RunMake(cfg Config) StageResult
+```
 
-- After a successful `make`, the new `circle` binary should be moved/renamed into place
-  atomically (e.g. build to a temp name, then `os.Rename` into `/bin/circle`). This is
-  safe with the game running, per the "Key constraints & decisions" note in the overview
-  (overwriting a running binary's file doesn't affect the already-running process).
-- Whether to keep the previous binary as a rollback copy (`circle.bak` or SHA-tagged) is
-  an open decision — flagged in the overview as a nice-to-have, not committed to yet.
+Key implementation notes:
+- **No `Branch` field on `pipeline.Config`** — deliberately removed after initially
+  including it, once the decision was made that branch is an orchestration concern (see
+  `00-overview.md`). `RunPull` takes `branch` as an explicit parameter instead.
+- `RunBackup` shells out to `cp -r <lib_dir> <backup_dir>/lib-<timestamp>` — no manual
+  recursive-copy code, no retention/pruning logic (explicitly out of scope, see open
+  questions in the overview).
+- `RunConfigure` runs `./configure` with `cmd.Dir = cfg.RepoDir`.
+- `RunMake` runs `make clean` then `make -j4` as two separate `exec.Command` calls (not
+  through a shell), both with `cmd.Dir = cfg.SrcDir`. If `make clean` fails, it returns
+  immediately without attempting the build. **No binary-swap logic exists or is
+  needed** — `make` itself produces `circle` directly in its final location per the
+  project's actual Makefile behavior (confirmed by the user, not assumed).
+- All four functions return a `StageResult`, never an `error` — `Success`/`Output`
+  inside the struct is the sole error-signaling mechanism, keeping `deploy-check`'s
+  orchestration loop simple (check `.Success`, no separate error path).
 
-## Open questions for this session
+Tested in `pipeline_test.go` against an **inline fake project fixture**
+(`setupFakeProject`, via `t.TempDir()`): a real `configure` shell script, a real
+`Makefile` with `all`/`clean` targets, and a real `lib/` directory with a dummy file —
+covers `RunConfigure`, `RunMake`, and `RunBackup` (which additionally asserts the backed
+up file actually landed in the destination, not just that `cp` exited 0).
 
-- Exact commands/flags for backup (tar? rsync? plain cp -r?) and where backups are stored.
-- Whether `RunMake` should build to a staging path and only swap on success (recommended —
-  keeps a bad build from ever touching the live `circle` binary), and where that staging
-  path lives.
-- Whether to keep N previous binaries for rollback, and how many.
-- Error handling contract: should a stage function ever partially mutate state (e.g. a
-  half-completed backup) that needs cleanup on failure?
+## Nothing outstanding here
+
+This component has since been proven against the user's real CircleMud repo via
+`deploy-check` (component 3), not just the fake fixtures — a full real run (backup,
+pull, configure, make) completed successfully. No further work is currently planned for
+this package beyond the deferred backup-retention item tracked in the overview.

@@ -1,59 +1,68 @@
-# Component 1: Project Skeleton
+# Component 1: Project Skeleton + Config (Updated — Done)
 
-See `00-overview.md` for full context, architecture table, and cross-component
-contracts (journal field names, state file path, non-goals) before making decisions here.
+See `00-overview.md` for full context and current architecture status before making
+decisions here. **This component is complete.**
 
-## Scope
-
-Set up the Go module and package layout that every other component builds on. No
-business logic yet — just structure and shared low-level helpers.
-
-## Proposed layout
+## What was built
 
 ```
-deploy-manager/
+deployment-manager/
   go.mod
+  go.sum
   cmd/
-    deploy-check/
-      main.go
-    deploy-tui/
-      main.go
+    deploy-check/main.go
+    deploy-tui/main.go
   internal/
-    gitutil/       # git ls-remote / pull wrappers (component 2)
-    pipeline/       # backup / configure / make stage logic (component 2)
-    journallog/      # thin wrapper around go-systemd/journal (used by 3 and 5)
+    gitutil/
+    pipeline/
+    journallog/
+    config/
+      config.go
+      config_test.go
+      testdata/config.json
 ```
 
-## Responsibilities of this component
+- Module initialized as `deploy-manager` (import paths in code use
+  `deploy-manager/internal/...`).
+- `internal/config/config.go` — loads a JSON config file into a `config.Config` struct
+  at startup, path supplied via CLI flag (not hardcoded, not env-based). This decision
+  was made deliberately, ahead of writing `deploy-check`, specifically to satisfy the
+  requirement that paths and the backup-enable toggle be configurable without code
+  changes.
 
-- `go.mod` / module name, Go version pin.
-- `internal/journallog`: a small helper package both `deploy-check` and (indirectly, via
-  parsing) `deploy-tui` rely on for consistent field names. Should expose something like:
-  ```go
-  func LogStage(stage string, status string, sha string, durationMs int64, extra map[string]string)
-  ```
-  so call sites in `pipeline`/`deploy-check` never hardcode field name strings directly.
-- Decide and hardcode the field name constants here (`DEPLOY_STAGE`, `DEPLOY_STATUS`,
-  `DEPLOY_SHA`, `DEPLOY_DURATION_MS`) as Go constants, since these are the contract with
-  component 5.
-- Decide the state file path/format for `last-deployed-sha` (single file, atomic write
-  via temp file + rename) and put a minimal read/write helper somewhere sensible —
-  either its own tiny `internal/state` package or folded into `journallog`'s neighbor
-  if it turns out trivial enough. (Open question — pick whichever keeps `pipeline` and
-  `deploy-check` cleanest; not a hard requirement to have a separate package.)
+```go
+type Config struct {
+	Pipeline      pipeline.Config `json:"pipeline"`
+	Branch        string          `json:"branch"`
+	EnableBackup  bool            `json:"enable_backup"`
+	StateFilePath string          `json:"state_file_path"`
+}
 
-## Explicitly out of scope here
+func Load(path string) (Config, error) { ... }
+```
 
-- Actual git/build logic → component 2.
-- Actual CLI flow (`--dry-run`, `--force`, locking) → component 3.
-- systemd unit content → component 4.
-- TUI code → component 5.
+- `Branch` and `EnableBackup` live at the top level of `config.Config`, not nested
+  inside `pipeline.Config` — see `00-overview.md`'s Config section for the reasoning
+  (they're orchestration-level decisions, not filesystem details).
+- `internal/config/testdata/config.json` — a real fixture file used by
+  `config_test.go`'s `TestLoad`. `testdata/` is the Go convention for test fixtures;
+  the toolchain ignores that directory name during normal builds.
+- `journallog` was originally a bare package with no dependency; it now depends on
+  `github.com/coreos/go-systemd/v22/journal` (see `03-deploy-check.md` /
+  `00-overview.md` for the real-implementation details — the stub-to-real swap is done).
+- `internal/history/` was added for component 5, not part of this component's original
+  scope — see `05-deploy-tui.md`.
 
-## Open questions for this session
+## Verified
 
-- Full vs short SHA stored/logged consistently across the codebase — pick one and apply
-  everywhere (affects both the state file and the `DEPLOY_SHA` journal field).
-- Where does the state file live — `/var/lib/deploy-manager/` (needs directory creation
-  logic, likely at install/systemd-unit time) vs. somewhere under the project directory
-  the user already controls. Depends partly on what user/permissions the systemd service
-  runs as (see component 4).
+- `go build ./...` and `go test ./...` both pass from the module root.
+- `config.Load` tested against a real fixture file, including a missing-file error case.
+
+## Nothing outstanding here
+
+This component's original open questions (full vs. short SHA consistency, state file
+location) were resolved through the config-file approach — location is fully
+configurable now, not a hardcoded decision baked into this component. No further work
+is anticipated on the skeleton itself; new packages (like `history`) get added here as
+new components need them, following the same `internal/<name>/<name>.go` +
+`<name>_test.go` pattern already established.

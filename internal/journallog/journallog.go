@@ -21,7 +21,7 @@ func LogStageDebug(stage string, status string, sha string, durationMs int64) {
 
 // LogStage records the outcome of a single pipeline stage to the systemd
 // journal, tagged with structured fields for later querying via journalctl.
-func LogStage(stage string, status string, sha string, durationMs int64) {
+func LogStage(runID string, stage string, status string, sha string, durationMs int64) {
 	priority := journal.PriInfo
 	if status == "failure" {
 		priority = journal.PriErr
@@ -30,6 +30,8 @@ func LogStage(stage string, status string, sha string, durationMs int64) {
 	message := "deploy stage " + stage + ": " + status
 
 	fields := map[string]string{
+		"SYSLOG_IDENTIFIER":  "deploy-check",
+		"DEPLOY_RUN_ID":      runID,
 		"DEPLOY_STAGE":       stage,
 		"DEPLOY_STATUS":      status,
 		"DEPLOY_SHA":         sha,

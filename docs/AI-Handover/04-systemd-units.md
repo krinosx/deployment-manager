@@ -1,31 +1,37 @@
-# Component 4: systemd Service + Timer Units
+# Component 4: systemd Service + Timer Units (Updated — Done)
 
-See `00-overview.md` for full context, architecture table, and cross-component
-contracts before making decisions here.
+See `00-overview.md` for full context before making decisions here. **This component is
+complete, installed, and verified on the user's real Ubuntu 26.04 machine.**
 
-## Scope
+## Decisions made (resolving prior open questions)
 
-Plain systemd unit files that schedule `deploy-check` (component 3) to run periodically,
-without any resident daemon process. This is the core of the "no resident daemon"
-architecture decision — systemd itself is already resident, so idle memory cost is zero.
+- **System-wide unit**, installed under `/etc/systemd/system/`, not a user unit. Chosen
+  deliberately so the tool keeps running regardless of interactive login/session state
+  — appropriate for something meant to run unattended on a server long-term.
+- **Config path passed explicitly via `ExecStart`**, not a fixed default path baked into
+  the Go binary. Keeps `deploy-check` itself config-path-agnostic.
+- **Runs as a non-root user** (`User=krinosx` in the actual installed unit — substitute
+  the real deploy/service account name in other environments), since nothing the tool
+  does requires root privileges.
 
-## Draft units (discussed so far, not finalized)
+## Final unit files (as installed)
 
+`/etc/systemd/system/deploy-check.service`:
 ```ini
-# /etc/systemd/system/deploy-check.service
 [Unit]
-Description=Check for new MUD version and deploy if found
+Description=Check for new CircleMud version and deploy if found
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/deploy-check
-User=youruser
-WorkingDirectory=/path/to/mud/project
+ExecStart=/usr/local/bin/deploy-check --config /etc/deploy-manager/config.json
+User=krinosx
 SyslogIdentifier=deploy-check
 ```
 
+`/etc/systemd/system/deploy-check.timer`:
 ```ini
-# /etc/systemd/system/deploy-check.timer
 [Unit]
 Description=Run deploy-check periodically
 
@@ -38,30 +44,49 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-- `Type=oneshot` matches the "runs and exits" model — no `Type=simple`/resident process.
-- `SyslogIdentifier=deploy-check` guarantees a stable tag for
-  `journalctl -t deploy-check` regardless of how the unit itself is named, and is what
-  the TUI (component 5) will filter on.
-- `Persistent=true` on the timer means a missed run (box was off) fires once at next
-  boot instead of being silently skipped — decided as a "costs nothing, keep it."
-- `OnUnitActiveSec=15min` is a placeholder interval — actual value not finalized.
+Notes on details that differ from the original draft in earlier planning:
+- `Wants=network-online.target` / `After=network-online.target` were **added**, not in
+  the original draft — needed since `deploy-check` does real git network operations and
+  a boot-time run could otherwise race against networking not being fully up.
+- `WorkingDirectory=` was **dropped** from the original draft — no longer needed since
+  the config path is explicit and nothing in the code relies on relative paths or
+  process working directory.
+- `SyslogIdentifier=deploy-check` was **kept** — this is what makes both
+  `journalctl -u deploy-check` and `journalctl -t deploy-check` work, and what
+  `internal/history` (component 5) filters on via `-t deploy-check`.
 
-## Open questions for this session
+## Install steps (as actually performed)
 
-- What user should the service run as? Needs write access to the project directory,
-  the `lib/` backup location, and the state file path (component 1/3) — but shouldn't
-  be root if avoidable. This decision feeds back into component 1's choice of state
-  file location (`/var/lib/deploy-manager/` vs. somewhere under the project directory).
-- Should config (branch name, project paths) be passed via `Environment=`/`EnvironmentFile=`
-  in the `.service` unit, or should `deploy-check` read a config file/have paths hardcoded?
-  Flagged as an open question in component 3's doc too — decide together.
-- System-level unit (`/etc/systemd/system/`) vs. user-level unit (`~/.config/systemd/user/`,
-  run via `systemctl --user`) — user units avoid needing root to install/manage, but only
-  run while the user has an active session unless lingering is enabled
-  (`loginctl enable-linger`). Worth deciding based on how the box is administered.
-- Actual interval for `OnUnitActiveSec` — depends on how quickly the user wants new
-  commits picked up vs. avoiding unnecessary `git ls-remote` calls.
-- Whether `deploy-tui`'s "trigger now" (component 5) should call
-  `systemctl start deploy-check.service` (requires the TUI's invoking user to have
-  permission to start the unit — may need a polkit rule or running the TUI as the same
-  user/group) — worth resolving here since it constrains component 5's implementation.
+```bash
+go build -o /tmp/deploy-check ./cmd/deploy-check
+sudo cp /tmp/deploy-check /usr/local/bin/deploy-check
+
+sudo mkdir -p /etc/deploy-manager
+sudo cp <local-config>.json /etc/deploy-manager/config.json
+
+sudo cp deploy-check.service deploy-check.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now deploy-check.timer
+```
+
+## Verification performed
+
+- `systemctl list-timers deploy-check.timer` confirmed scheduling.
+- `sudo systemctl start deploy-check.service` triggered a real, successful run.
+- `journalctl -u deploy-check -o verbose -n 30` showed expected structured fields,
+  including `DEPLOY_RUN_ID` shared across all four stages of the triggered run.
+
+## Important operational note carried into `05-deploy-tui.md`
+
+Since this is a **system-wide** unit, triggering it from `deploy-tui` (running as a
+regular user) via `systemctl start deploy-check.service` will require some privilege
+mechanism — sudo, a polkit rule, or running the TUI itself with elevated rights. This
+was a hypothetical in the original design doc; it's now a concrete blocker to resolve
+before `deploy-tui`'s "trigger now" feature can work as designed. See
+`05-deploy-tui.md`.
+
+## Nothing else outstanding here
+
+No further work is planned on the unit files themselves unless requirements change
+(e.g. wanting sub-15-minute reaction time, which would just mean lowering
+`OnUnitActiveSec`).

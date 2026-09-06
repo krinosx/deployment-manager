@@ -1,61 +1,148 @@
-# Component 5: `deploy-tui`
+# Component 5: `deploy-tui` (Updated — In Progress)
 
-See `00-overview.md` for full context, architecture table, and cross-component
-contracts (journal field names) before making decisions here.
+See `00-overview.md` for full context, current architecture status, and the
+`DEPLOY_RUN_ID` addition before continuing work here. **This is the actively in-progress
+component.** Everything below reflects real progress made so far, not just the original
+plan.
 
-## Scope
+## Progress so far
 
-A terminal UI, built last since it's a pure view over data structures/contracts that
-components 1–4 already define. Two main capabilities:
+1. **Dependencies added**: `github.com/charmbracelet/bubbletea`,
+   `github.com/charmbracelet/lipgloss`.
+2. **Minimal bubbletea skeleton built and verified working** in `cmd/deploy-tui/main.go`
+   — renders a placeholder message, quits cleanly on `q`/`ctrl+c`. This confirmed the
+   Model-Update-View wiring compiles and runs correctly before any real data was
+   introduced. (The actual "hello world" code is simple enough to recreate from
+   scratch if needed — see the bubbletea docs' basic example, or ask for it again; not
+   worth preserving verbatim here since it will be replaced by the real model next.)
+3. **`internal/history/history.go` written** (fetches and parses real journal data) —
+   **not yet tested against real data**. This is the immediate next step when work
+   resumes.
 
-1. **Browse run history** — read from the systemd journal, not a custom store.
-2. **Trigger a check manually** — either run `deploy-check` directly or trigger it via
-   systemd, then show/stream progress.
+## `internal/history/history.go` (as written, untested)
 
-## Stack
+```go
+package history
 
-- Go, `github.com/charmbracelet/bubbletea` for the TUI framework/event loop,
-  `github.com/charmbracelet/lipgloss` for styling/layout.
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os/exec"
+)
 
-## History view
+// Entry represents a single journal line for one pipeline stage.
+type Entry struct {
+	RunID      string `json:"DEPLOY_RUN_ID"`
+	Stage      string `json:"DEPLOY_STAGE"`
+	Status     string `json:"DEPLOY_STATUS"`
+	SHA        string `json:"DEPLOY_SHA"`
+	DurationMs string `json:"DEPLOY_DURATION_MS"`
+	Timestamp  string `json:"__REALTIME_TIMESTAMP"`
+	Message    string `json:"MESSAGE"`
+}
 
-- Data source: `journalctl -u deploy-check -o json --no-pager` (exact filter — by unit
-  name vs. `SyslogIdentifier=deploy-check` via `-t deploy-check` — should match whatever
-  component 4 settles on), invoked via `os/exec` and parsed as JSONL (one JSON object
-  per line).
-- Each parsed entry exposes the standardized fields from the overview:
-  `DEPLOY_STAGE`, `DEPLOY_STATUS`, `DEPLOY_SHA`, `DEPLOY_DURATION_MS`, plus journald's
-  own fields (`__REALTIME_TIMESTAMP`, `MESSAGE`, `PRIORITY`, etc).
-- Since logging is per-stage (not per-run), the TUI needs to **group consecutive stage
-  entries into a "run"** for a sensible list view (e.g. group by `DEPLOY_SHA` + rough
-  timestamp proximity, since there's no explicit run/session ID in the current design —
-  worth revisiting if grouping proves awkward, see open questions).
-- List view: one line per run (SHA, timestamp, overall pass/fail derived from its
-  stages, total duration). Drill-down view: per-stage breakdown with captured output
-  (`MESSAGE` field) for a selected run.
+// FetchEntries runs `journalctl` for the deploy-check unit and parses each
+// line as a JSON object.
+func FetchEntries() ([]Entry, error) {
+	cmd := exec.Command("journalctl", "-t", "deploy-check", "-o", "json", "--no-pager")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("journalctl failed: %w", err)
+	}
+	return parseEntries(output)
+}
 
-## Manual trigger
+// parseEntries decodes journalctl's JSON-lines output (one JSON object per
+// line, not a JSON array) into a slice of Entry.
+func parseEntries(output []byte) ([]Entry, error) {
+	decoder := json.NewDecoder(bytes.NewReader(output))
 
-- Two possible approaches, not yet decided between (see component 4's open questions,
-  which this depends on):
-  - Shell out to `systemctl start deploy-check.service`, then tail
-    `journalctl -u deploy-check -f -o json` to show live progress in the TUI as new
-    stage entries arrive.
-  - Or invoke the `deploy-check` binary directly as a subprocess and stream its stdout —
-    simpler, but bypasses the systemd-managed lock/scheduling context (still safe since
-    `deploy-check` itself holds its own `flock`, per component 3).
+	var entries []Entry
+	for decoder.More() {
+		var e Entry
+		if err := decoder.Decode(&e); err != nil {
+			return nil, fmt.Errorf("failed to parse journal entry: %w", err)
+		}
+		if e.RunID != "" {
+			entries = append(entries, e)
+		}
+	}
+	return entries, nil
+}
 
-## Open questions for this session
+// Run represents all stages belonging to one deploy-check execution.
+type Run struct {
+	RunID  string
+	SHA    string
+	Stages []Entry
+}
 
-- How to group per-stage journal entries into logical "runs" for the list view, given
-  there's no explicit run/session identifier in the current logging design. Simplest
-  fix: have `deploy-check` (component 3) generate a random/incrementing run ID at start
-  and include it as an additional journal field — worth raising back with component 3
-  if grouping by SHA+timestamp proves unreliable (e.g. two consecutive no-op checks
-  with the same SHA).
-- Permission model for `systemctl start deploy-check.service` from a non-root TUI session
-  — depends on component 4's decision on system vs. user unit.
-- Read-only vs. read-write scope of the TUI beyond triggering — e.g. should it ever be
-  able to edit the branch being tracked, or is that purely a config/systemd-unit concern
-  outside the TUI's responsibility? Leaning towards TUI staying read-only + trigger-only,
-  not a config editor, but not explicitly settled.
+// GroupByRun groups a flat list of entries into runs, preserving the order
+// runs first appear in.
+func GroupByRun(entries []Entry) []Run {
+	var runs []Run
+	index := make(map[string]int)
+
+	for _, e := range entries {
+		i, exists := index[e.RunID]
+		if !exists {
+			runs = append(runs, Run{RunID: e.RunID, SHA: e.SHA})
+			i = len(runs) - 1
+			index[e.RunID] = i
+		}
+		runs[i].Stages = append(runs[i].Stages, e)
+	}
+	return runs
+}
+```
+
+Implementation notes:
+- Filters on `-t deploy-check`, matching `SyslogIdentifier=deploy-check` from the
+  systemd unit (component 4) — not the process/binary name, which would break under
+  `go run` vs. the installed binary.
+- `journalctl -o json` emits **JSON Lines** (one object per line), not a JSON array —
+  hence the `json.Decoder` + `decoder.More()` loop rather than a single `Unmarshal`
+  call.
+- All journal field values arrive as strings, including `DEPLOY_DURATION_MS` — no
+  numeric conversion happens in this package yet; that's expected to happen at display
+  time (via `strconv.ParseInt`) wherever the TUI actually renders duration.
+- `GroupByRun` relies entirely on `DEPLOY_RUN_ID` (see `00-overview.md`) — this is
+  exactly why that field was added before writing this function, avoiding a
+  SHA+timestamp heuristic.
+- The `e.RunID != ""` filter guards against any journal entries matching the `-t`
+  filter that aren't actually from this tool (unlikely given the specific tag, but a
+  cheap safety check).
+
+## Immediate next step when resuming
+
+Test `FetchEntries()` + `GroupByRun()` against real journal data on the dev machine —
+e.g. via a throwaway `main.go` or a quick test — **before** wiring this into the
+bubbletea `View()`. Confirms the parsing logic works against actual `journalctl` output
+on this specific machine/systemd version before building UI on top of it.
+
+## Remaining scope (not yet started)
+
+- Wire `history.FetchEntries`/`GroupByRun` into the bubbletea model as a `tea.Cmd` (async
+  load, so the UI doesn't block while `journalctl` runs) — need to introduce a custom
+  `tea.Msg` type (e.g. `historyLoadedMsg`) fed back into `Update`.
+- List view: one line per `Run` (SHA, derived overall pass/fail from its `Stages`,
+  total/last-stage timestamp).
+- Drill-down view: per-stage breakdown for a selected run, showing captured output
+  (`Message` field) — useful for inspecting a failure.
+- "Trigger now" action — **blocked on an unresolved permission question**: since
+  `deploy-check.service` is a system-wide unit (see `04-systemd-units.md`), calling
+  `systemctl start deploy-check.service` from a regular-user TUI session needs a
+  privilege-escalation mechanism (sudo prompt, polkit rule, or running the TUI itself
+  with elevated rights). Not yet decided — needs resolving before this feature can be
+  built, not just a nice-to-have.
+- Styling via lipgloss — not started, currently plain-text rendering only.
+
+## Open questions specific to this component
+
+- How to actually invoke `systemctl start` with appropriate permissions from the TUI
+  (see above — the single biggest open item for this component right now).
+- Whether the TUI should support live-tailing a triggered run (`journalctl -f`) versus
+  only showing completed history — original design allowed for either; not decided.
+- Whether the TUI should remain strictly read-only + trigger-only, or ever expose any
+  config editing — current lean is still "read-only + trigger," not settled formally.

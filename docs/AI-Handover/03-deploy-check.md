@@ -1,59 +1,72 @@
-# Component 3: `deploy-check` Binary
+# Component 3: `deploy-check` Binary (Updated — Done)
 
-See `00-overview.md` for full context, architecture table, and cross-component
-contracts (journal field names, state file) before making decisions here.
-
-## Scope
-
-The one-shot CLI binary that systemd's timer unit (component 4) actually invokes. Thin
-orchestration layer over `gitutil`/`pipeline` (component 2) and `journallog` (component 1).
-
-## Flow
-
-1. Acquire a lock (`flock` on a well-known lockfile) so a timer-triggered run and a
-   TUI-triggered manual run can never race. If lock can't be acquired, exit cleanly
-   (log or not — open question below) rather than blocking.
-2. Read `last-deployed-sha` from the state file.
-3. `gitutil.RemoteHeadSHA(branch)` to get the current remote SHA — no working-tree
-   changes yet.
-4. Compare. If equal: nothing to do, release lock, exit 0 (whether this "no-op" case
-   gets a journal entry at all, and at what priority, is an open question — see below).
-5. If different: run the pipeline stages in order —
-   `backup → pull → configure → make` — logging one journal entry per stage via
-   `journallog.LogStage(...)`, including a `start`/`success`/`failure` status and
-   duration per stage.
-6. If any stage fails: stop the pipeline (don't proceed to later stages), leave
-   `last-deployed-sha` unchanged, release lock, exit non-zero.
-7. If all stages succeed: atomically update `last-deployed-sha` to the new SHA, release
-   lock, exit 0.
-
-## CLI flags (indicative, not finalized)
-
-- `--dry-run` — do the check but skip actually running the pipeline; useful for testing
-  the check logic and lock/state handling in isolation.
-- `--force` — run the pipeline even if remote SHA == last-deployed-sha; useful for
-  re-running a deploy after fixing something without needing a new commit.
-- Possibly `--branch <name>` to override a config default, if branch isn't just hardcoded.
-
-Get this binary working and manually tested as a plain CLI (no systemd involved yet)
-before moving to component 4 — much easier to debug standalone.
+See `00-overview.md` for full context, the complete orchestration flow, and current
+architecture status before making decisions here. **This component is complete, tested
+against a real repo, and installed/verified under systemd.**
 
 ## Dependencies
 
-- `internal/gitutil`, `internal/pipeline` (component 2)
-- `internal/journallog` (component 1)
-- `github.com/coreos/go-systemd/v22/journal` (direct dependency, wrapped by journallog)
+- `internal/gitutil`, `internal/pipeline`, `internal/journallog`, `internal/config`
+- `github.com/coreos/go-systemd/v22/journal` (via `journallog`)
+- `github.com/google/uuid` — added specifically to generate one `DEPLOY_RUN_ID` per
+  execution (see below and `00-overview.md`)
 
-## Open questions for this session
+## CLI flags (as implemented, not just proposed)
 
-- Exact lockfile path and whether failing to acquire the lock should itself log a
-  journal entry (e.g. "another run already in progress") or just exit silently.
-- Whether "checked, nothing new" (no-op) runs get a journal entry — useful for confirming
-  the timer is actually firing, but adds noise to the journal if it fires often. Could
-  gate this behind a `--verbose` flag or a lower log priority (`PriDebug`).
-- Whether a failed stage should attempt any rollback/cleanup (e.g. of a half-pulled repo
-  state) or just leave things as-is for manual inspection — currently leaning towards
-  "leave as-is, it's visible in the journal, admin investigates," but not finalized.
-- Config source: hardcoded paths/branch in the binary, a small config file, or CLI flags/
-  env vars only? Given this runs under systemd, env vars set in the `.service` unit
-  (component 4) might be the simplest option — worth deciding together with component 4.
+- `--config <path>` — required in practice; no hardcoded default fallback currently
+  relied upon in real usage (the systemd unit always passes it explicitly).
+- `--dry-run` — checks remote SHA, prints what would be deployed, does not run the
+  pipeline or touch state.
+- `--force` — runs the pipeline even if remote SHA equals last-deployed SHA.
+
+## Orchestration flow
+
+See `00-overview.md`'s "`deploy-check` orchestration flow" section for the full
+numbered sequence — it's kept there as the single source of truth since it's a
+cross-cutting detail relevant to component 5 as well (the TUI reads what this binary
+writes).
+
+## Key implementation details worth knowing for future sessions
+
+- **Locking**: `syscall.Flock` on `<state_file_path>.lock`, `LOCK_EX|LOCK_NB` (exclusive,
+  non-blocking). A second concurrent invocation fails fast with an stderr message and
+  exit code 1, rather than queueing. The lock is released implicitly when the file
+  descriptor closes (`defer lockFile.Close()`), no explicit unlock call needed.
+- **State file**: read via `os.ReadFile` (missing file treated as empty SHA, not an
+  error — handles the very first run gracefully). Written via a temp-file-then-rename
+  pattern (`os.Rename` is atomic on Linux), so a crash mid-write can't corrupt the state
+  file.
+- **Run ID**: `uuid.NewString()` is called once near the top of `main()`, after the
+  no-op/dry-run checks (i.e. only real pipeline runs get a run ID — no-op checks don't).
+  This ID is threaded through `runPipeline(cfg, runID, remoteSHA)` and included in every
+  `journallog.LogStage` call for that execution. This was a deliberate addition made
+  *before* building `deploy-tui`, specifically to give the history view an unambiguous
+  grouping key instead of relying on SHA+timestamp proximity.
+- **`runPipeline`'s stage list is built as a slice of closures**, with the backup stage
+  conditionally appended only if `cfg.EnableBackup` is true — this is how the
+  configurable-backup requirement was actually wired in, not via an `if` check inside a
+  fixed-stage loop.
+- Exit codes matter operationally: non-zero exit is what makes a failed run show as
+  `failed` in `systemctl status deploy-check.service`, independent of journal detail.
+
+## Verified against real usage
+
+- Manual `-dry-run` and real (non-dry-run) runs against the user's actual CircleMud repo
+  both completed successfully — full backup → pull → configure → make cycle confirmed
+  working, including subsequent no-op runs correctly detecting "nothing new" on repeat
+  invocation.
+- Re-verified end-to-end again after the `DEPLOY_RUN_ID` addition, confirming all four
+  stages in a single run share the same run ID via `journalctl -o verbose`.
+- Re-verified again once installed under systemd (see `04-systemd-units.md`) —
+  `sudo systemctl start deploy-check.service` produces the expected journal output.
+
+## Remaining open items (tracked centrally in `00-overview.md`)
+
+- No journal entry currently written for no-op ("nothing to deploy") runs.
+- No journal entry written when lock acquisition fails.
+- No automatic creation of missing parent directories for `backup_dir` /
+  `state_file_path` — currently a hard failure if they don't exist.
+- No rollback/cleanup attempted on a failed stage.
+
+None of these block `deploy-tui` work; they're independent hardening items that can be
+picked up at any time.

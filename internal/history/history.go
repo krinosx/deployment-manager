@@ -42,6 +42,8 @@ func FetchEntries() ([]Entry, error) {
 func parseEntries(output []byte) ([]Entry, error) {
 	decoder := json.NewDecoder(bytes.NewReader(output))
 
+
+
 	var entries []Entry
 	for decoder.More() {
 		var e Entry

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strconv"
+	"time"
 )
 
 // Entry represents a single journal line for one pipeline stage.
@@ -14,6 +16,7 @@ type Entry struct {
 	Status     string `json:"DEPLOY_STATUS"`
 	SHA        string `json:"DEPLOY_SHA"`
 	DurationMs string `json:"DEPLOY_DURATION_MS"`
+	Output     string `json:"DEPLOY_OUTPUT"`
 	Timestamp  string `json:"__REALTIME_TIMESTAMP"`
 	Message    string `json:"MESSAGE"`
 }
@@ -42,8 +45,6 @@ func FetchEntries() ([]Entry, error) {
 func parseEntries(output []byte) ([]Entry, error) {
 	decoder := json.NewDecoder(bytes.NewReader(output))
 
-
-
 	var entries []Entry
 	for decoder.More() {
 		var e Entry
@@ -56,6 +57,38 @@ func parseEntries(output []byte) ([]Entry, error) {
 	}
 
 	return entries, nil
+}
+
+// OverallStatus derives a single pass/fail result for the run from its
+// stages: any non-"success" stage fails the whole run.
+func (r Run) OverallStatus() string {
+	if len(r.Stages) == 0 {
+		return "UNKNOWN"
+	}
+	for _, s := range r.Stages {
+		if s.Status == "noop" {
+			return "NO-OP"
+		}
+	}
+	for _, s := range r.Stages {
+		if s.Status != "success" {
+			return "FAIL"
+		}
+	}
+	return "PASS"
+}
+
+// Timestamp returns the time of the run's last stage entry, parsed from the
+// journal's microsecond-epoch string. Returns the zero time if unavailable.
+func (r Run) Timestamp() time.Time {
+	if len(r.Stages) == 0 {
+		return time.Time{}
+	}
+	micros, err := strconv.ParseInt(r.Stages[len(r.Stages)-1].Timestamp, 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	return time.UnixMicro(micros)
 }
 
 // GroupByRun groups a flat list of entries into runs, preserving the order

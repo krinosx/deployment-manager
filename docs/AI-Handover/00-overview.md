@@ -45,7 +45,16 @@ the component-specific doc for whatever you're working on.
 - **Logging: real systemd journal**, via `github.com/coreos/go-systemd/v22/journal`.
   This was originally stubbed to stdout, then swapped to the real implementation and
   verified via `journalctl --user -f -o verbose` — **this swap is complete**, not
-  pending.
+  pending. **Important fix applied since:** the fields map passed to `journal.Send`
+  must explicitly include `"SYSLOG_IDENTIFIER": "deploy-check"`. Without it,
+  `journal.Send` entries are tagged correctly for `_SYSTEMD_UNIT`-based filtering
+  (`journalctl -u deploy-check.service`, since systemd attaches that automatically to
+  everything in the unit's cgroup) but are **invisible** to tag-based filtering
+  (`journalctl -t deploy-check`), because `go-systemd/journal` does not set
+  `SYSLOG_IDENTIFIER` automatically the way stdout output does. This matters a lot
+  because `internal/history` (component 5) filters via `-t deploy-check` specifically
+  so it works whether or not `deploy-check` is running under systemd at all — this fix
+  is required for that to function correctly.
 - **Scheduling: systemd timer, no resident daemon.** `deploy-check` is a one-shot binary
   invoked by a `.timer` unit; it runs and exits. **Installed and verified as a
   system-wide unit** (`/etc/systemd/system/`, not a user unit) — chosen because the tool
@@ -149,6 +158,9 @@ Written by `journallog.LogStage`, one call per pipeline stage (`backup`, `pull`,
 - `DEPLOY_SHA` — the commit SHA being deployed
 - `DEPLOY_DURATION_MS` — stage duration in milliseconds, as a string (all journal field
   values are strings; convert with `strconv` where a numeric value is needed)
+- `SYSLOG_IDENTIFIER` — explicitly set to `"deploy-check"` in every call (see fix above);
+  not one of the custom `DEPLOY_*` fields, but required for `-t deploy-check` filtering
+  to work at all.
 
 Priority mapping: `journal.PriInfo` for success, `journal.PriErr` for failure — chosen so
 `journalctl -p err -u deploy-check` (or `-t deploy-check`) surfaces failed stages
@@ -214,9 +226,20 @@ New, specific to `deploy-tui` (see `05-deploy-tui.md` for full detail):
   a non-root TUI session, given the unit is now confirmed to be a **system-wide** unit —
   this needs an actual answer now (e.g. polkit rule, sudo, or running the TUI with
   elevated privileges), it's no longer a hypothetical from the original design doc.
-- `internal/history/history.go` has been written (fetch + parse `journalctl -o json`
-  output, group by `DEPLOY_RUN_ID`) but **not yet tested against real data** — next
-  immediate step when work resumes.
+- `internal/history/history.go` has been written **and successfully tested against real
+  journal data** on the dev machine, via a throwaway diagnostic `main.go` in
+  `cmd/deploy-tui` (fetches entries, prints grouped-by-run output). Confirmed: entry
+  counts match expected stage counts per run, grouping by `DEPLOY_RUN_ID` correctly
+  separates distinct runs, and duration values parse as expected. This test surfaced the
+  `SYSLOG_IDENTIFIER` bug described above, which has since been fixed and re-verified.
+  **Next immediate step:** replace the throwaway diagnostic `main.go` with the real
+  bubbletea model, wiring `history.FetchEntries`/`GroupByRun` in as a `tea.Cmd` for
+  async loading.
+- The user is switching to **Claude Code** (terminal-based) to continue implementation
+  work from this point forward, specifically for the bubbletea wiring, since it
+  benefits from direct file access and the ability to run `go build`/`go test` and see
+  real compiler errors during iteration. These handoff docs are intended to be read by
+  a new Claude Code session to restore full context.
 
 ## How to use these docs in a new session
 

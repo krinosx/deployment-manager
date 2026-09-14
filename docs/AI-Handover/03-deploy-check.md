@@ -7,7 +7,11 @@ against a real repo, and installed/verified under systemd.**
 ## Dependencies
 
 - `internal/gitutil`, `internal/pipeline`, `internal/journallog`, `internal/config`
-- `github.com/coreos/go-systemd/v22/journal` (via `journallog`)
+- `github.com/coreos/go-systemd/v22/journal` (via `journallog`) — **note:** the fields
+  map passed to `journal.Send` must include `"SYSLOG_IDENTIFIER": "deploy-check"`
+  explicitly; this was missing initially and caused `journalctl -t deploy-check` to miss
+  all per-stage log lines (they were only visible via `-u deploy-check.service`). Fixed
+  and verified — see `00-overview.md` for full detail.
 - `github.com/google/uuid` — added specifically to generate one `DEPLOY_RUN_ID` per
   execution (see below and `00-overview.md`)
 

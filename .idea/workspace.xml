@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e6e02034-b579-4926-90b5-1bc49be8bfcb" name="Changes" comment="Renovating AI docs and implementing log reading code.&#10;&#10;Implemented a new module history.go to read and parse jorunald entries. &#10;&#10;Created a hello world bubbletea app to validate the dependencies. &#10;&#10;Fixed a bug in the Jornallog.go by adding the SYSLOG_IDENTIFIER string to every log line. That way we can actually filter the logs by our identifier.">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/history/history.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/history/history.go" afterDir="false" />
-    </list>
+    <list default="true" id="e6e02034-b579-4926-90b5-1bc49be8bfcb" name="Changes" comment="V1.0 - First version &#10;&#10;- TUI is working. Need some improvement but I will postpone to see the usage.&#10;&#10;- Created packaging and installation scripts&#10;&#10;- Service is functional and deploying changes" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -105,32 +102,44 @@
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Logs and Linux Service&#10;&#10;Implementing code to send logs to systemd journal.&#10;&#10;Creating the linux service files." />
     <MESSAGE value="Renovating AI docs and implementing log reading code.&#10;&#10;Implemented a new module history.go to read and parse jorunald entries. &#10;&#10;Created a hello world bubbletea app to validate the dependencies. &#10;&#10;Fixed a bug in the Jornallog.go by adding the SYSLOG_IDENTIFIER string to every log line. That way we can actually filter the logs by our identifier." />
-    <option name="LAST_COMMIT_MESSAGE" value="Renovating AI docs and implementing log reading code.&#10;&#10;Implemented a new module history.go to read and parse jorunald entries. &#10;&#10;Created a hello world bubbletea app to validate the dependencies. &#10;&#10;Fixed a bug in the Jornallog.go by adding the SYSLOG_IDENTIFIER string to every log line. That way we can actually filter the logs by our identifier." />
+    <MESSAGE value="V1.0 - First version &#10;&#10;- TUI is working. Need some improvement but I will postpone to see the usage.&#10;&#10;- Created packaging and installation scripts&#10;&#10;- Service is functional and deploying changes" />
+    <option name="LAST_COMMIT_MESSAGE" value="V1.0 - First version &#10;&#10;- TUI is working. Need some improvement but I will postpone to see the usage.&#10;&#10;- Created packaging and installation scripts&#10;&#10;- Service is functional and deploying changes" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/cmd/deploy-tui/main.go</url>
-          <line>43</line>
+          <line>222</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/internal/history/history.go</url>
-          <line>30</line>
+          <line>33</line>
           <option name="timeStamp" value="4" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/internal/history/history.go</url>
-          <line>50</line>
+          <line>51</line>
           <option name="timeStamp" value="5" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/internal/history/history.go</url>
-          <line>49</line>
+          <line>50</line>
           <option name="timeStamp" value="6" />
         </line-breakpoint>
       </breakpoints>

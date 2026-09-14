@@ -47,6 +47,7 @@ func main() {
 	}
 
 	if remoteSHA == lastSHA && !*force {
+		journallog.LogStage(uuid.NewString(), "check", "noop", remoteSHA, 0, "")
 		fmt.Println("no new commits, nothing to do")
 		return
 	}
@@ -104,7 +105,7 @@ func runPipeline(cfg config.Config, runID, sha string) bool {
 		if !result.Success {
 			status = "failure"
 		}
-		journallog.LogStage(runID, result.Stage, status, sha, result.Duration.Milliseconds())
+		journallog.LogStage(runID, result.Stage, status, sha, result.Duration.Milliseconds(), result.Output)
 
 		if !result.Success {
 			_, _ = fmt.Fprintf(os.Stderr, "stage %q failed: %s\n", result.Stage, result.Output)

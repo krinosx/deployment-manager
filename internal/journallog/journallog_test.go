@@ -13,7 +13,7 @@ func TestLogStage(t *testing.T) {
 		t.Skip("systemd journal not available on this system")
 	}
 
-	LogStage("make", "success", "abc123", 4200)
+	LogStage("test-run-id", "make", "success", "abc123", 4200, "make output goes here")
 
 	// journalctl needs a moment to index; a short real-world check would
 	// normally poll, but for a quick manual sanity check this is enough.

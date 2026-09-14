@@ -2,7 +2,8 @@
 
 See `00-overview.md` for full context, current architecture status, and the
 `DEPLOY_RUN_ID` addition before continuing work here. **This is the actively in-progress
-component.** Everything below reflects real progress made so far, not just the original
+component**, and the one being continued in a new Claude Code terminal session going
+forward. Everything below reflects real progress made so far, not just the original
 plan.
 
 ## Progress so far
@@ -15,9 +16,14 @@ plan.
    introduced. (The actual "hello world" code is simple enough to recreate from
    scratch if needed — see the bubbletea docs' basic example, or ask for it again; not
    worth preserving verbatim here since it will be replaced by the real model next.)
-3. **`internal/history/history.go` written** (fetches and parses real journal data) —
-   **not yet tested against real data**. This is the immediate next step when work
-   resumes.
+3. **`internal/history/history.go` written and successfully tested against real journal
+   data.** A throwaway diagnostic `main.go` (temporarily replacing the bubbletea
+   skeleton) called `FetchEntries()` + `GroupByRun()` directly and printed the grouped
+   results. Confirmed working: entry counts, correct grouping by `DEPLOY_RUN_ID`, and
+   duration values all looked correct. This test is what surfaced the
+   `SYSLOG_IDENTIFIER` bug (see `00-overview.md`) — now fixed and re-verified. The
+   diagnostic `main.go` should be replaced with the real bubbletea model next; it was
+   never meant to be kept.
 
 ## `internal/history/history.go` (as written, untested)
 
@@ -114,12 +120,22 @@ Implementation notes:
   filter that aren't actually from this tool (unlikely given the specific tag, but a
   cheap safety check).
 
-## Immediate next step when resuming
+## Immediate next step when resuming (this is the actual next task for Claude Code)
 
-Test `FetchEntries()` + `GroupByRun()` against real journal data on the dev machine —
-e.g. via a throwaway `main.go` or a quick test — **before** wiring this into the
-bubbletea `View()`. Confirms the parsing logic works against actual `journalctl` output
-on this specific machine/systemd version before building UI on top of it.
+Replace the throwaway diagnostic `main.go` in `cmd/deploy-tui` with the real bubbletea
+model:
+1. Restore the bubbletea `model`/`Init`/`Update`/`View` skeleton (see "Progress so far"
+   above — it was temporarily swapped out for the diagnostic version).
+2. Add a `runs []history.Run` field (and a `loading bool` / `err error` field) to the
+   model.
+3. Load data via a `tea.Cmd` returned from `Init()` — a function that calls
+   `history.FetchEntries()` + `GroupByRun()` and returns a custom message type (e.g.
+   `historyLoadedMsg{runs []history.Run, err error}`) — so the journalctl subprocess
+   call doesn't block the UI thread.
+4. Handle that message type in `Update()`, storing the result into the model.
+5. Render a simple list of runs in `View()` once loaded (SHA + derived pass/fail +
+   stage count is enough for a first pass — styling and scrolling can come after basic
+   correctness).
 
 ## Remaining scope (not yet started)
 

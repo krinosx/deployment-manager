@@ -16,11 +16,17 @@ deployment-manager/
     gitutil/
     pipeline/
     journallog/
+    history/
     config/
       config.go
       config_test.go
       testdata/config.json
+  resources/       <- component 6: packaging templates (unit files, config template)
+  scripts/         <- component 6: build_package.sh, install.sh
 ```
+
+`resources/` and `scripts/` were added for component 6 (packaging/install), not part of
+this component's original scope — see `06-packaging-deploy.md`.
 
 - Module initialized as `deploy-manager` (import paths in code use
   `deploy-manager/internal/...`).

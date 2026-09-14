@@ -63,6 +63,13 @@ Key implementation notes:
 - All four functions return a `StageResult`, never an `error` — `Success`/`Output`
   inside the struct is the sole error-signaling mechanism, keeping `deploy-check`'s
   orchestration loop simple (check `.Success`, no separate error path).
+- **Known minor gap:** `RunBackup`, `RunConfigure`, and `RunMake` all populate `Output`
+  with the command's real `CombinedOutput()` on success too, but `RunPull` only sets
+  `Output` on error — a successful pull leaves it empty. This surfaced when
+  `deploy-tui`'s log drill-down (component 5) started showing `Output` per stage: a
+  passing `pull` stage always renders "(no output captured)" there, while `configure`
+  and `make` show their real output. Not yet fixed, tracked in `00-overview.md`'s open
+  questions.
 
 Tested in `pipeline_test.go` against an **inline fake project fixture**
 (`setupFakeProject`, via `t.TempDir()`): a real `configure` shell script, a real

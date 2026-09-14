@@ -16,16 +16,24 @@ complete, installed, and verified on the user's real Ubuntu 26.04 machine.**
 
 ## Final unit files (as installed)
 
-`/etc/systemd/system/deploy-check.service`:
+**Update:** as of component 6, these two files live as templates in `resources/` and are
+no longer hand-installed — `scripts/install.sh` copies `deploy-check.timer` verbatim and
+substitutes `User=__SERVICE_USER__` in `deploy-check.service` for the real installing
+account (`$SUDO_USER`, or an explicit `SERVICE_USER=` override) via `sed`. The shape
+below is unchanged, just the mechanism for getting it onto disk — see
+`06-packaging-deploy.md`.
+
+`/etc/systemd/system/deploy-check.service` (as installed, `User=` filled in by
+`install.sh`):
 ```ini
 [Unit]
-Description=Check for new CircleMud version and deploy if found
+Description=MUD Server deployment operator.
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/deploy-check --config /etc/deploy-manager/config.json
+ExecStart=/usr/local/bin/deploy-check --config /etc/deployment-manager/config.json
 User=krinosx
 SyslogIdentifier=deploy-check
 ```
@@ -55,19 +63,33 @@ Notes on details that differ from the original draft in earlier planning:
   `journalctl -u deploy-check` and `journalctl -t deploy-check` work, and what
   `internal/history` (component 5) filters on via `-t deploy-check`.
 
-## Install steps (as actually performed)
+## Install steps
+
+**Original manual steps** (kept here for reference — this is essentially what
+`install.sh` now does automatically):
 
 ```bash
 go build -o /tmp/deploy-check ./cmd/deploy-check
 sudo cp /tmp/deploy-check /usr/local/bin/deploy-check
 
-sudo mkdir -p /etc/deploy-manager
-sudo cp <local-config>.json /etc/deploy-manager/config.json
+sudo mkdir -p /etc/deployment-manager
+sudo cp <local-config>.json /etc/deployment-manager/config.json
 
 sudo cp deploy-check.service deploy-check.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now deploy-check.timer
 ```
+
+**Actual current process** (component 6, used for the real game-server install):
+```bash
+./scripts/build_package.sh                  # dev machine, builds a tarball
+scp dist/deploy-manager-*.tar.gz user@host:  # copy it over
+# on the target machine:
+tar xzf deploy-manager-*.tar.gz && cd deploy-manager-*/
+sudo ./install.sh
+```
+See `06-packaging-deploy.md` for the full detail, including why binaries are built
+statically (`CGO_ENABLED=0`) so no Go toolchain is needed on the target.
 
 ## Verification performed
 
@@ -76,14 +98,17 @@ sudo systemctl enable --now deploy-check.timer
 - `journalctl -u deploy-check -o verbose -n 30` showed expected structured fields,
   including `DEPLOY_RUN_ID` shared across all four stages of the triggered run.
 
-## Important operational note carried into `05-deploy-tui.md`
+## Important operational note carried into `05-deploy-tui.md` — now resolved
 
 Since this is a **system-wide** unit, triggering it from `deploy-tui` (running as a
-regular user) via `systemctl start deploy-check.service` will require some privilege
-mechanism — sudo, a polkit rule, or running the TUI itself with elevated rights. This
-was a hypothetical in the original design doc; it's now a concrete blocker to resolve
-before `deploy-tui`'s "trigger now" feature can work as designed. See
-`05-deploy-tui.md`.
+regular user) via `systemctl start deploy-check.service` needed some privilege
+mechanism. **Resolved**: `install.sh` installs a scoped, passwordless sudoers rule
+(`/etc/sudoers.d/deploy-tui`, limited to exactly `systemctl start deploy-check.service`
+for the installing user) as part of every install. `deploy-tui` shells out to
+`sudo systemctl start deploy-check.service`; without the passwordless rule, `sudo` would
+prompt on the TUI's controlling TTY and corrupt the bubbletea display, so this rule isn't
+optional polish — the trigger-now feature doesn't work at all without it. See
+`05-deploy-tui.md` and `06-packaging-deploy.md`.
 
 ## Nothing else outstanding here
 
